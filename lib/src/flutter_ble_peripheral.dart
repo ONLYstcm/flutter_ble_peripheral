@@ -5,31 +5,21 @@
  */
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_data.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_set_parameters.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_settings.dart';
+import 'package:flutter_ble_peripheral/src/models/gatt_characteristic.dart';
+import 'package:flutter_ble_peripheral/src/models/gatt_server.dart';
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 
 class FlutterBlePeripheral {
-  /// Singleton instance
-  static final FlutterBlePeripheral _instance =
-      FlutterBlePeripheral._internal();
-
-  /// Singleton factory
-  factory FlutterBlePeripheral() {
-    return _instance;
-  }
-
-  /// Singleton constructor
-  FlutterBlePeripheral._internal();
-
   /// Method Channel used to communicate state with
-  final MethodChannel _methodChannel =
-      const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+  final MethodChannel _methodChannel = const MethodChannel(
+      'dev.steenbakker.flutter_ble_peripheral/ble_state',
+  );
 
   /// Event Channel for MTU state
   final EventChannel _mtuChangedEventChannel = const EventChannel(
@@ -41,12 +31,62 @@ class FlutterBlePeripheral {
     'dev.steenbakker.flutter_ble_peripheral/ble_state_changed',
   );
 
+  /// Event Channel used to capture gatt events
+  final EventChannel _gattEventChannel = const EventChannel(
+      'dev.steenbakker.flutter_ble_peripheral/ble_gatt_event',
+  );
+
+
   Stream<int>? _mtuState;
   Stream<PeripheralState>? _peripheralState;
+  late final Stream<Map<String, dynamic>> _eventGattStream;
+
+  /// Singleton instance
+  static final FlutterBlePeripheral _instance = FlutterBlePeripheral._internal();
+
+  /// Singleton factory
+  factory FlutterBlePeripheral() {
+    return _instance;
+  }
+
+  /// Singleton constructor
+  FlutterBlePeripheral._internal() {
+    _eventGattStream = _gattEventChannel
+        .receiveBroadcastStream()
+        .map((event) => Map<String, dynamic>.from(event as Map));
+  }
 
   //TODO Event Channel used to received data
   // final EventChannel _dataReceivedEventChannel = const EventChannel(
   //     'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
+
+  /// Prepares a Gatt Server. Takes UUID, serviceType and list of GattCharacteristic as an input
+  Future<GattServer> server({
+    required String serverUuid,
+    bool primaryServiceType = true,
+    List<GattCharacteristic>? characteristics,
+  }) async {
+    return GattServer(
+      _methodChannel,
+      serverUuid,
+      primaryServiceType : primaryServiceType,
+      characteristics : characteristics,
+    );
+  }
+
+  /// Creates a Gatt Characteristic. Takes UUID, properties and permissions as an input
+  GattCharacteristic characteristic({
+    required String characteristicUuid,
+    required int properties,
+    required int permissions,
+  }) {
+    return GattCharacteristic(
+              _eventGattStream,
+              characteristicUuid,
+              properties: properties,
+              permissions: permissions,
+          );
+  }
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> start({

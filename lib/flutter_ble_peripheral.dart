@@ -5,4 +5,6 @@ export 'src/models/advertise_settings.dart';
 export 'src/models/constants.dart';
 export 'src/models/enums/advertise_mode.dart';
 export 'src/models/enums/advertise_tx_power.dart';
+export 'src/models/gatt_characteristic.dart';
+export 'src/models/gatt_server.dart';
 export 'src/models/peripheral_state.dart';
