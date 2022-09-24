@@ -4,7 +4,7 @@
 //
 //  Created by Julian Steenbakker on 25/03/2022.
 //
-
+/*
 import Foundation
 import CoreBluetooth
 import CoreLocation
@@ -133,3 +133,5 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
 //        }
 //    }
 }
+
+*/
