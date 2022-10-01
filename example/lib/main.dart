@@ -20,11 +20,12 @@ class FlutterBlePeripheralExample extends StatefulWidget {
       FlutterBlePeripheralExampleState();
 }
 
-class FlutterBlePeripheralExampleState extends State<FlutterBlePeripheralExample> {
+class FlutterBlePeripheralExampleState
+    extends State<FlutterBlePeripheralExample> {
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
 
   final AdvertiseData advertiseData = AdvertiseData(
-    serviceUuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
+    serviceUuid: '7CE9A896-5352-48E2-BC85-F38B9BCCBA0A',
     manufacturerId: 1234,
     manufacturerData: Uint8List.fromList([1, 2, 3, 4, 5, 6]),
   );
@@ -36,10 +37,11 @@ class FlutterBlePeripheralExampleState extends State<FlutterBlePeripheralExample
   );
 
   final AdvertiseSetParameters advertiseSetParameters = AdvertiseSetParameters(
-      txPowerLevel: txPowerMedium,
-      legacyMode: true,
-      connectable: true,
-      scannable: true);
+    txPowerLevel: txPowerMedium,
+    legacyMode: true,
+    connectable: true,
+    scannable: true,
+  );
 
   bool _isSupported = false;
   late GattServer gattService;
@@ -61,24 +63,24 @@ class FlutterBlePeripheralExampleState extends State<FlutterBlePeripheralExample
     });
 
     final testCharacteristic = blePeripheral.characteristic(
-        characteristicUuid: "94d46d34-6d23-4ef5-bd1d-4774ae25cbf8",
-        properties: GattCharacteristic.PROPERTY_READ
-        | GattCharacteristic.PROPERTY_WRITE
-        | GattCharacteristic.PROPERTY_NOTIFY,
-        permissions: GattCharacteristic.PERMISSION_READ
-        | GattCharacteristic.PERMISSION_WRITE
+      characteristicUuid: "94d46d34-6d23-4ef5-bd1d-4774ae25cbf8",
+      properties: GattCharacteristic.PROPERTY_READ |
+          GattCharacteristic.PROPERTY_WRITE |
+          GattCharacteristic.PROPERTY_NOTIFY,
+      permissions: GattCharacteristic.PERMISSION_READ |
+          GattCharacteristic.PERMISSION_WRITE,
     );
 
-    streamRead = testCharacteristic.listenRead((device, requestId, offset) {
-      print("Test read from ${device}");
+    streamRead = testCharacteristic.listenRead((event) {
+      print("Test read from ${event}");
     });
 
-    streamWrite = testCharacteristic.listenWrite((device, requestId, offset, preparedWrite, responseNeeded, value) {
-      print("Test write from ${device}. Data: ${value.toString()}");
+    streamWrite = testCharacteristic.listenWrite((event) {
+      print("Test write from ${event}. "); //Data: ${event['value'].toString()}
     });
 
-    streamNotification = testCharacteristic.listenNotificationState((device, enabled) {
-      print("Test notification state from ${device}. Enabled: ${enabled}");
+    streamNotification = testCharacteristic.listenNotificationState((event) {
+      print("Test notification state from ${event}. "); //Enabled: ${event['']}
     });
 
     List<GattCharacteristic> characteristics = [
@@ -86,10 +88,9 @@ class FlutterBlePeripheralExampleState extends State<FlutterBlePeripheralExample
     ];
 
     gattService = await blePeripheral.server(
-      serverUuid: "f55d290d-8081-4ee9-a19f-982c6857446a",
-      primaryServiceType: true,
-      characteristics: characteristics
-    );
+        serverUuid: "238c54d0-f5ae-4c32-9ba5-a8569c08316d",
+        primaryServiceType: true,
+        characteristics: characteristics);
   }
 
   Future<void> _toggleAdvertise() async {

@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+
+
 
 class GattCharacteristic {
   static const int PROPERTY_BROADCAST = 0x01;
@@ -9,12 +12,15 @@ class GattCharacteristic {
   static const int PROPERTY_INDICATE = 0x20;
   static const int PROPERTY_SIGNED_WRITE = 0x40;
   static const int PROPERTY_EXTENDED_PROPS = 0x80;
+  static const int PROPERTY_NOTIFY_ENCRYPTED = 0x100;
+  static const int PROPERTY_INDICATE_ENCRYPTED = 0x200;
 
+  // Check if platform is android otherwise assume iOS
   static const int PERMISSION_READ = 0x01;
-  static const int PERMISSION_READ_ENCRYPTED = 0x02;
+  static int PERMISSION_READ_ENCRYPTED = Platform.isAndroid ? 0x02 : 0x04;
   static const int PERMISSION_READ_ENCRYPTED_MITM = 0x04;
-  static const int PERMISSION_WRITE = 0x10;
-  static const int PERMISSION_WRITE_ENCRYPTED = 0x20;
+  static int PERMISSION_WRITE = Platform.isAndroid ? 0x10 : 0x02;
+  static int PERMISSION_WRITE_ENCRYPTED = Platform.isAndroid ? 0x20 : 0x08;
   static const int PERMISSION_WRITE_ENCRYPTED_MITM = 0x40;
   static const int PERMISSION_WRITE_SIGNED = 0x80;
   static const int PERMISSION_WRITE_SIGNED_MITM = 0x100;
@@ -43,48 +49,33 @@ class GattCharacteristic {
   }
 
 
-  StreamSubscription listenRead(void Function(String device, int requestId, int offset) onRead) {
+  StreamSubscription listenRead(void Function(Map event) onRead) {
     return _eventStream
         .where((event) => event['event'] == 'CharacteristicReadRequest')
         .listen((event) {
           print(event);
           onRead(
-              event['device'] as String,
-              event['requestId'] as int,
-              event['offset'] as int,
+              event,
           );
     });
   }
 
-  StreamSubscription listenWrite(void Function(
-      String device,
-      int requestId,
-      int offset,
-      bool preparedWrite,
-      bool responseNeeded,
-      List value,
-    ) onWrite) {
+  StreamSubscription listenWrite(void Function(Map event) onWrite) {
     return _eventStream
         .where((event) => event['event'] == 'CharacteristicWriteRequest')
         .listen((event) {
           onWrite(
-            event['device'] as String,
-            event['requestId'] as int,
-            event['offset'] as int,
-            event['preparedWrite'] as bool,
-            event['responseNeeded'] as bool,
-            event['value'] as List,
+            event,
           );
         });
   }
 
-  StreamSubscription listenNotificationState(void Function(String device, bool enabled) onStateChange) {
+  StreamSubscription listenNotificationState(void Function(Map event) onStateChange) {
     return _eventStream
         .where((event) => event['event'] == 'NotificationStateChange')
         .listen((event) {
           onStateChange(
-              event['device'] as String,
-              event['enabled'] as bool,
+              event,
           );
         });
   }

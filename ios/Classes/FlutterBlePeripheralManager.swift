@@ -9,16 +9,20 @@ import Foundation
 import CoreBluetooth
 import CoreLocation
 
-class FlutterBlePeripheralManager : NSObject {
+class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
     
     let stateChangedHandler: StateChangedHandler
-    
-    init(stateChangedHandler: StateChangedHandler) {
+    let gattEventHandler: GattEventHandler
+
+    var mGattServiceCharacteristics: [String: CBMutableCharacteristic] = [:]
+    var mGattService: CBMutableService?
+
+    init(stateChangedHandler: StateChangedHandler, gattEventHandler: GattEventHandler) {
         self.stateChangedHandler = stateChangedHandler
+        self.gattEventHandler = gattEventHandler
     }
     
     lazy var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
-//    var peripheralData: NSDictionary!
 
     // min MTU before iOS 10
 //    var mtu: Int = 158 {
@@ -26,22 +30,6 @@ class FlutterBlePeripheralManager : NSObject {
 //          onMtuChanged?(mtu)
 //        }
 //    }
-    
-//    var dataToBeAdvertised: [String: Any]!
-//
-//    var txCharacteristic: CBMutableCharacteristic?
-//    var txSubscribed = false {
-//        didSet {
-//            if txSubscribed {
-//                state = .connected
-//            } else if isAdvertising() {
-//                state = .advertising
-//            }
-//        }
-//    }
-//    var rxCharacteristic: CBMutableCharacteristic?
-//
-//    var txSubscriptions = Set<UUID>()
     
     func start(advertiseData: PeripheralData) {
         
@@ -53,43 +41,133 @@ class FlutterBlePeripheralManager : NSObject {
         if (advertiseData.localName != nil) {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = advertiseData.localName
         }
-        
+
         peripheralManager.startAdvertising(dataToBeAdvertised)
+    }
+
+    func gattServer(
+            serviceUuid : String,
+            primaryServiceType : Bool,
+            serviceCharacteristics : [CBMutableCharacteristic]
+        ) {
+        print("FlutterBlePeripheralManager::Starting GattServer")
+        peripheralManager.removeAllServices()
+
+        mGattService = CBMutableService(type: CBUUID(string: serviceUuid), primary: primaryServiceType)
+        mGattService!.characteristics = serviceCharacteristics
         
-//         TODO: Add service to advertise
-//        if peripheralManager.state == .poweredOn {
-//            addService()
-//        }
+        for characteristic in serviceCharacteristics {
+            mGattServiceCharacteristics[characteristic.uuid.uuidString] = characteristic
+        }
+
+        //peripheralManager.add(mGattService)
+        print("FlutterBlePeripheralManager::BLE Service Prepared")
     }
     
-// TODO: Add service to advertise
-//    private func addService() {
-//        // Add service and characteristics if needed
-//        if txCharacteristic == nil || rxCharacteristic == nil {
-//
-//            let mutableTxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: PeripheralData.txCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
-//            let mutableRxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: PeripheralData.rxCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
-//
-//            let service = CBMutableService(type: CBUUID(string: PeripheralData.serviceUUID), primary: true)
-//            service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic];
-//
-//            peripheralManager.add(service)
-//
-//            self.txCharacteristic = mutableTxCharacteristic
-//            self.rxCharacteristic = mutableRxCharacteristic
-//        }
-//
-//        peripheralManager.startAdvertising(dataToBeAdvertised)
-//    }
-//
-//    func send(data: Data) {
-//
-//        print("[flutter_ble_peripheral] Send data: \(data)")
-//
-//        guard let characteristic = txCharacteristic else {
-//            return
-//        }
-//
-//        peripheralManager.updateValue(data, for: characteristic, onSubscribedCentrals: nil)
-//    }
+    func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+        var state: PeripheralState
+        switch peripheral.state {
+        case .poweredOn:
+            state = .idle
+            if (mGattService != nil) {
+                peripheralManager.add(mGattService!)
+                print("FlutterBlePeripheralManager::BLE Service Added")
+            }
+        case .poweredOff:
+            state = .poweredOff
+        case .resetting:
+            state = .idle
+        case .unsupported:
+            state = .unsupported
+        case .unauthorized:
+            state = .unauthorized
+        case .unknown:
+            state = .unknown
+        @unknown default:
+            state = .unknown
+        }
+        stateChangedHandler.publishPeripheralState(state: state)
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
+        print("didAdd:", service, error ?? "success")
+    }
+    
+    func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
+        print("[flutter_ble_peripheral] didStartAdvertising:", error ?? "success")
+        
+        guard error == nil else {
+            return
+        }
+
+        stateChangedHandler.publishPeripheralState(state: .advertising)
+    }
+
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
+        print("didReceiveRead:", request)
+        if let characteristic = mGattServiceCharacteristics[request.characteristic.uuid.uuidString] {
+            request.value = characteristic.value
+            peripheralManager.respond(to: request, withResult: .success)
+            self.gattEventHandler.publishEventData(
+                data: [
+                    "event": "CharacteristicReadRequest",
+                    "device": request.central.identifier.uuidString as String,
+                    "characteristic": characteristic.uuid.uuidString as String,
+                    "offset": request.offset as Int
+                ]
+            )
+            print("didReceiveRead: Success")
+        } else {
+            peripheralManager.respond(to: request, withResult: .requestNotSupported)
+            print("didReceiveRead: Failed")
+        }
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
+        print("didReceiveWrite:", requests)
+        
+        guard let firstRequest = requests.first else {
+            fatalError()
+        }
+        
+        for request in requests {
+            if let characteristic = mGattServiceCharacteristics[request.characteristic.uuid.uuidString] {
+                characteristic.value = request.value
+                self.gattEventHandler.publishEventData(
+                    data: [
+                        "event": "CharacteristicWriteRequest",
+                        "device": request.central.identifier.uuidString as String,
+                        "characteristic": characteristic.uuid.uuidString as String,
+                        "offset": request.offset as Int,
+                        "value": String(data: request.value!, encoding: .utf8),
+                    ]
+                )
+                let notified = peripheral.updateValue(
+                    request.value!,
+                    for: characteristic,
+                    onSubscribedCentrals: nil
+                )
+                if notified {
+                    print("didReceiveWrite: Notification Sent")
+                }
+                print("didReceiveWrite: Success")
+            } else {
+                peripheralManager.respond(to: firstRequest, withResult: .requestNotSupported)
+                print("didReceiveWrite: Failed")
+                return
+            }
+        }
+        
+        peripheralManager.respond(to: firstRequest, withResult: .success)
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
+        print("didSubscribeTo:", central, characteristic)
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
+        print("didUnsubscribeFrom:", central, characteristic)
+    }
+
 }
