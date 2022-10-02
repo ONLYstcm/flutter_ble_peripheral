@@ -18,7 +18,7 @@ import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 class FlutterBlePeripheral {
   /// Method Channel used to communicate state with
   final MethodChannel _methodChannel = const MethodChannel(
-      'dev.steenbakker.flutter_ble_peripheral/ble_state',
+    'dev.steenbakker.flutter_ble_peripheral/ble_state',
   );
 
   /// Event Channel for MTU state
@@ -33,16 +33,16 @@ class FlutterBlePeripheral {
 
   /// Event Channel used to capture gatt events
   final EventChannel _gattEventChannel = const EventChannel(
-      'dev.steenbakker.flutter_ble_peripheral/ble_gatt_event',
+    'dev.steenbakker.flutter_ble_peripheral/ble_gatt_event',
   );
-
 
   Stream<int>? _mtuState;
   Stream<PeripheralState>? _peripheralState;
   late final Stream<Map<String, dynamic>> _eventGattStream;
 
   /// Singleton instance
-  static final FlutterBlePeripheral _instance = FlutterBlePeripheral._internal();
+  static final FlutterBlePeripheral _instance =
+      FlutterBlePeripheral._internal();
 
   /// Singleton factory
   factory FlutterBlePeripheral() {
@@ -69,8 +69,8 @@ class FlutterBlePeripheral {
     return GattServer(
       _methodChannel,
       serverUuid,
-      primaryServiceType : primaryServiceType,
-      characteristics : characteristics,
+      primaryServiceType: primaryServiceType,
+      characteristics: characteristics,
     );
   }
 
@@ -81,11 +81,12 @@ class FlutterBlePeripheral {
     required int permissions,
   }) {
     return GattCharacteristic(
-              _eventGattStream,
-              characteristicUuid,
-              properties: properties,
-              permissions: permissions,
-          );
+      _methodChannel,
+      _eventGattStream,
+      characteristicUuid,
+      properties: properties,
+      permissions: permissions,
+    );
   }
 
   /// Start advertising. Takes [AdvertiseData] as an input.

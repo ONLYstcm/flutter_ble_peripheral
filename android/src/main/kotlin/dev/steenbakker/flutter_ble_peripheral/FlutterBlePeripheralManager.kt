@@ -326,6 +326,20 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
 
     }
 
+    fun characteristicWrite(charUuid: String, charData: String) : Boolean {
+        if (mGattServiceCharacteristics.containsKey(charUuid)) {
+            return mGattServiceCharacteristics[charUuid]!!.setValue(charData)
+        }
+        return false
+    }
+
+    fun characteristicRead(charUuid: String) : ByteArray? {
+        if (mGattServiceCharacteristics.containsKey(charUuid)) {
+            return mGattServiceCharacteristics[charUuid]!!.getValue()
+        }
+        return null
+    }
+
     fun closeGattServer () {
         mBluetoothGattServer.clearServices()
         mBluetoothGattServer.close()

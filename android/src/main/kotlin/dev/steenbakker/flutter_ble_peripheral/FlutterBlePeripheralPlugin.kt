@@ -139,6 +139,8 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 when (call.method) {
                     "server/create" -> createGattServer(call, result)
                     "server/close" -> closeGattServer(result)
+                    "characteristic/write" -> characteristicWrite(call, result)
+                    "characteristic/read" -> characteristicRead(call, result)
                     "start" -> startPeripheral(call, result)
                     "stop" -> stopPeripheral(result)
                     "isAdvertising" -> Handler(Looper.getMainLooper()).post {
@@ -171,7 +173,6 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                         result.success(null)
                     }
                     */
-//                    "sendData" -> sendData(call, result)
                     else -> Handler(Looper.getMainLooper()).post {
                         result.notImplemented()
                     }
@@ -229,6 +230,35 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             Log.i(tag, "Stop gatt server")
             result.success(null)
         }
+    }
+
+    private fun characteristicWrite(call: MethodCall, result: MethodChannel.Result) {
+        if (call.arguments !is Map<*, *>) {
+            throw IllegalArgumentException("Arguments are not a map! " + call.arguments)
+        }
+
+        val arguments = call.arguments as Map<String, Any>
+
+        val success: Boolean = flutterBlePeripheralManager!!.characteristicWrite(
+            arguments["uuid"] as String,
+            arguments["data"] as String
+        )
+
+        result.success(success)
+    }
+
+    private fun characteristicRead(call: MethodCall, result: MethodChannel.Result) {
+        if (call.arguments !is Map<*, *>) {
+            throw IllegalArgumentException("Arguments are not a map! " + call.arguments)
+        }
+
+        val arguments = call.arguments as Map<String, Any>
+
+        val value: ByteArray? = flutterBlePeripheralManager!!.characteristicRead(
+            arguments["uuid"] as String
+        ) as ByteArray?
+
+        result.success(value)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -404,19 +434,6 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         }
     }
 
-//    private fun sendData(call: MethodCall, result: MethodChannel.Result) {
-//        Log.i(tag, "Try send data: ${call.arguments}")
-//
-//        (call.arguments as? ByteArray)?.let { data ->
-//            flutterBlePeripheralManager!!.send(data)
-//            Log.i(tag, "Send data: $data")
-//            Handler(Looper.getMainLooper()).post { result.success(null) }
-//        } ?: Handler(Looper.getMainLooper()).post {
-//            Log.i(tag, "Send data error")
-//            result.error("122", "send data", null)
-//        }
-//    }
-
     private fun hasPermissions(context: Context): Boolean {
         // Required for API > 31
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -466,7 +483,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         return (context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN)
                 == PackageManager.PERMISSION_GRANTED)
     }
-
+    
     @RequiresApi(Build.VERSION_CODES.M)
     private fun hasLocationFinePermission(context: Context): Boolean {
         return (context.checkSelfPermission(

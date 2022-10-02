@@ -44,7 +44,9 @@ class FlutterBlePeripheralExampleState
   );
 
   bool _isSupported = false;
+  int counter = 0;
   late GattServer gattService;
+  late GattCharacteristic testCharacteristic;
 
   StreamSubscription? streamRead;
   StreamSubscription? streamWrite;
@@ -62,7 +64,7 @@ class FlutterBlePeripheralExampleState
       _isSupported = isSupported;
     });
 
-    final testCharacteristic = blePeripheral.characteristic(
+    testCharacteristic = blePeripheral.characteristic(
       characteristicUuid: "94d46d34-6d23-4ef5-bd1d-4774ae25cbf8",
       properties: GattCharacteristic.PROPERTY_READ |
           GattCharacteristic.PROPERTY_WRITE |
@@ -70,6 +72,8 @@ class FlutterBlePeripheralExampleState
       permissions: GattCharacteristic.PERMISSION_READ |
           GattCharacteristic.PERMISSION_WRITE,
     );
+
+    print(testCharacteristic.writeData("Test Data"));
 
     streamRead = testCharacteristic.listenRead((event) {
       print("Test read from ${event}");
@@ -88,9 +92,9 @@ class FlutterBlePeripheralExampleState
     ];
 
     gattService = await blePeripheral.server(
-        serverUuid: "238c54d0-f5ae-4c32-9ba5-a8569c08316d",
-        primaryServiceType: true,
-        characteristics: characteristics);
+      serverUuid: "238c54d0-f5ae-4c32-9ba5-a8569c08316d",
+      characteristics: characteristics,
+    );
   }
 
   Future<void> _toggleAdvertise() async {
@@ -100,6 +104,10 @@ class FlutterBlePeripheralExampleState
       await blePeripheral.start(
           advertiseData: advertiseData,
           advertiseSetParameters: advertiseSetParameters);
+      counter++;
+      print(await testCharacteristic
+          .writeData("Test Data: " + counter.toString()));
+      print(await testCharacteristic.readData());
     }
   }
 
@@ -111,6 +119,10 @@ class FlutterBlePeripheralExampleState
         advertiseData: advertiseData,
         advertiseSetParameters: advertiseSetParameters,
       );
+      counter++;
+      print(await testCharacteristic
+          .writeData("Test Data: " + counter.toString()));
+      print(await testCharacteristic.readData());
     }
   }
 
