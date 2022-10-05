@@ -50,6 +50,10 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             createGattServer(call, result)
         case "server/close":
             closeGattServer(result)
+        case "characteristic/write":
+            characteristicWrite(call, result)
+        case "characteristic/read":
+            characteristicRead(call, result)
         case "start":
             startPeripheral(call, result)
         case "stop":
@@ -74,14 +78,10 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         let arguments = call.arguments as! Dictionary<String,AnyObject>
         let primaryServiceType: Bool = arguments["type"] as! Bool ? false : true
 
-        print(arguments)
-        print(primaryServiceType)
-
         var characteristicList: [CBMutableCharacteristic] = []
         
         for characteristicMap in arguments["characteristics"] as! [Dictionary<String,AnyObject>] {
-            print(characteristicMap)
-            var characteristic: CBMutableCharacteristic = CBMutableCharacteristic(
+            let characteristic: CBMutableCharacteristic = CBMutableCharacteristic(
                 type: CBUUID(string: characteristicMap["uuid"] as! String),
                 properties: CBCharacteristicProperties(rawValue: characteristicMap["properties"] as! UInt),
                 value: nil,
@@ -104,6 +104,32 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         //    Log.i(tag, "Stop gatt server")
         //    result.success(null)
         //}
+    }
+
+
+    private func characteristicWrite(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+        print("Writing to characteristic")
+
+        let arguments = call.arguments as! Dictionary<String,AnyObject>
+
+        let success = flutterBlePeripheralManager.characteristicWrite(
+            characteristicUuid: arguments["uuid"] as! String,
+            value: arguments["data"] as! String
+        ) as Bool
+
+        result(success)
+    }
+
+    private func characteristicRead(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+        print("Reading from characteristic")
+
+        let arguments = call.arguments as! Dictionary<String,AnyObject>
+
+        let value = flutterBlePeripheralManager.characteristicRead(
+            characteristicUuid: arguments["uuid"] as! String
+        ) as String?
+
+        result(value)
     }
     
     private func startPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {

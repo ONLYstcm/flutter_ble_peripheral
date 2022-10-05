@@ -333,9 +333,10 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
         return false
     }
 
-    fun characteristicRead(charUuid: String) : ByteArray? {
+    fun characteristicRead(charUuid: String) : String? {
         if (mGattServiceCharacteristics.containsKey(charUuid)) {
-            return mGattServiceCharacteristics[charUuid]!!.getValue()
+            String value = utf8.decode(mGattServiceCharacteristics[charUuid]!!.getValue())
+            return value
         }
         return null
     }

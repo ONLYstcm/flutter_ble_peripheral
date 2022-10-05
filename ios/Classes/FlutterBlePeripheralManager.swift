@@ -60,10 +60,35 @@ class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
             mGattServiceCharacteristics[characteristic.uuid.uuidString] = characteristic
         }
 
-        //peripheralManager.add(mGattService)
         print("FlutterBlePeripheralManager::BLE Service Prepared")
     }
+
+    func characteristicWrite(characteristicUuid : String, value : String) -> Bool {
+        print("FlutterBlePeripheralManager::Writing Characteristic")
+        if let characteristic = mGattServiceCharacteristics[characteristicUuid.uppercased()] {
+            let value: Data = Data(value.utf8)
+            characteristic.value = value
+            let notified = peripheralManager.updateValue(
+                value,
+                for: characteristic,
+                onSubscribedCentrals: nil
+            )
+            if notified {
+                print("Characteristic Write: Notification Sent")
+            }
+            return notified
+        }
+        return false
+    }
     
+    func characteristicRead(characteristicUuid : String) -> String? {
+        print("FlutterBlePeripheralManager::Reading Characteristic")
+        if let characteristic = mGattServiceCharacteristics[characteristicUuid.uppercased()] {
+            return String(data: characteristic.value ?? Data("".utf8), encoding: .utf8)
+        }
+        return nil
+    }
+
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         var state: PeripheralState
         switch peripheral.state {
@@ -114,7 +139,8 @@ class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
                     "event": "CharacteristicReadRequest",
                     "device": request.central.identifier.uuidString as String,
                     "characteristic": characteristic.uuid.uuidString as String,
-                    "offset": request.offset as Int
+                    "offset": request.offset as Int,
+                    "value": String(data: request.value ?? Data("".utf8), encoding: .utf8) as String?,
                 ]
             )
             print("didReceiveRead: Success")
@@ -132,33 +158,29 @@ class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
         }
         
         for request in requests {
+            if let value: Data = request.value, request.offset > value.count {
+                peripheralManager.respond(to: request, withResult: .invalidOffset)
+                print("didReceiveWrite: Error offset")
+                return
+            }
             if let characteristic = mGattServiceCharacteristics[request.characteristic.uuid.uuidString] {
-                characteristic.value = request.value
+                let value: String = String(data: request.value ?? Data("".utf8), encoding: .utf8)!
                 self.gattEventHandler.publishEventData(
                     data: [
                         "event": "CharacteristicWriteRequest",
                         "device": request.central.identifier.uuidString as String,
                         "characteristic": characteristic.uuid.uuidString as String,
                         "offset": request.offset as Int,
-                        "value": String(data: request.value!, encoding: .utf8),
+                        "value": value as String,
                     ]
                 )
-                let notified = peripheral.updateValue(
-                    request.value!,
-                    for: characteristic,
-                    onSubscribedCentrals: nil
-                )
-                if notified {
-                    print("didReceiveWrite: Notification Sent")
-                }
-                print("didReceiveWrite: Success")
+                characteristicWrite(characteristicUuid: characteristic.uuid.uuidString, value: value)
             } else {
                 peripheralManager.respond(to: firstRequest, withResult: .requestNotSupported)
                 print("didReceiveWrite: Failed")
                 return
             }
         }
-        
         peripheralManager.respond(to: firstRequest, withResult: .success)
     }
     

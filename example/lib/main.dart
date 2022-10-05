@@ -67,10 +67,8 @@ class FlutterBlePeripheralExampleState
     testCharacteristic = blePeripheral.characteristic(
       characteristicUuid: "94d46d34-6d23-4ef5-bd1d-4774ae25cbf8",
       properties: GattCharacteristic.PROPERTY_READ |
-          GattCharacteristic.PROPERTY_WRITE |
           GattCharacteristic.PROPERTY_NOTIFY,
-      permissions: GattCharacteristic.PERMISSION_READ |
-          GattCharacteristic.PERMISSION_WRITE,
+      permissions: GattCharacteristic.PERMISSION_READ 
     );
 
     print(testCharacteristic.writeData("Test Data"));
@@ -80,11 +78,11 @@ class FlutterBlePeripheralExampleState
     });
 
     streamWrite = testCharacteristic.listenWrite((event) {
-      print("Test write from ${event}. "); //Data: ${event['value'].toString()}
+      print("Test write from ${event}"); 
     });
 
     streamNotification = testCharacteristic.listenNotificationState((event) {
-      print("Test notification state from ${event}. "); //Enabled: ${event['']}
+      print("Test notification state from ${event}. "); 
     });
 
     List<GattCharacteristic> characteristics = [

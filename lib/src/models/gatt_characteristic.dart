@@ -73,19 +73,18 @@ class GattCharacteristic {
     return success;
   }
 
-  Future<Uint8List> readData() async {
-    final Uint8List byteArray = await _methodChannel.invokeMethod(
+  Future<String?> readData() async {
+    final String? data = await _methodChannel.invokeMethod(
       "characteristic/read",
       toMap(),
-    ) as Uint8List;
-    return byteArray;
+    );
+    return data;
   }
 
   StreamSubscription listenRead(void Function(Map event) onRead) {
     return _eventStream
         .where((event) => event['event'] == 'CharacteristicReadRequest')
         .listen((event) {
-      print(event);
       onRead(
         event,
       );
