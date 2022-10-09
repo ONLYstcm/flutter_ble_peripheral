@@ -67,7 +67,6 @@ class FlutterBlePeripheralExampleState
     testCharacteristic = blePeripheral.characteristic(
         characteristicUuid: "94d46d34-6d23-4ef5-bd1d-4774ae25cbf8",
         properties: GattCharacteristic.PROPERTY_READ |
-            GattCharacteristic.PROPERTY_INDICATE |
             GattCharacteristic.PROPERTY_NOTIFY,
         permissions: GattCharacteristic.PERMISSION_READ);
 

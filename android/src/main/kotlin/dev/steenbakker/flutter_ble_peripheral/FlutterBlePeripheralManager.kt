@@ -44,7 +44,7 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
 
     private lateinit var mBluetoothGattServer: BluetoothGattServer
     private lateinit var mGattService : BluetoothGattService
-    private var mBluetoothGatt: BluetoothGatt? = null
+    private var mBluetoothGatt: MutableMap<String, BluetoothGatt> = mutableMapOf<String, BluetoothGatt>()
     private var mBluetoothDevices: MutableMap<String, BluetoothDevice> = mutableMapOf<String, BluetoothDevice>()
     private var mGattServiceCharacteristics: MutableMap<String, BluetoothGattCharacteristic> = mutableMapOf<String, BluetoothGattCharacteristic>()
 
@@ -123,11 +123,6 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
             }
         }
 
-        fun onDataReceived(value : ByteArray) {
-            Log.i("FlutterBlePeripheralManager", "onDataReceived: " + String(value))
-
-        } 
-
         val serverCallback = object : BluetoothGattServerCallback() {
             override fun onPhyUpdate(device: BluetoothDevice?, txPhy: Int, rxPhy: Int, status: Int) {
                 Log.d("FlutterBlePeripheralManager", "BluetoothGattServerCallback::onPhyUpdate")
@@ -170,12 +165,13 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
                 when (status) {
                     BluetoothProfile.STATE_CONNECTED -> {
                         mBluetoothDevices.put(device!!.address, device!!)
-                        mBluetoothGatt = mBluetoothDevices[device!!.address]!!.connectGatt(context, true, gattCallback)
+                        mBluetoothGatt.put(device!!.address, mBluetoothDevices[device!!.address]!!.connectGatt(context, true, gattCallback))
                         stateChangedHandler.publishPeripheralState(PeripheralState.connected)
                         Log.i("BluetoothGattServerCallback::onConnectionStateChange", "Device connected $device")
                     }
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         mBluetoothDevices.remove(device!!.address)
+                        mBluetoothGatt.remove(device!!.address)
                         if (mBluetoothDevices.isEmpty()) {
                             stateChangedHandler.publishPeripheralState(PeripheralState.idle)
                         }
@@ -256,10 +252,10 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
                         if (value!!.isNotEmpty()) {
                             Log.i("FlutterBlePeripheralManager", "Characteristic Write Request: " + characteristic.uuid)
 
-                            //mBluetoothGatt = mBluetoothDevices[device.address].connectGatt(context, true, gattCallback)
-                            //stateChangedHandler.publishPeripheralState(PeripheralState.connected)
-                            mGattServiceCharacteristics[characteristic.uuid.toString()]!!.setValue(value!!)
-                            onDataReceived(value!!)
+                            characteristicWrite(
+                                characteristic.uuid.toString(), 
+                                String(value!!)
+                            )
 
                             mBluetoothGattServer.sendResponse(
                                     device,
@@ -288,11 +284,11 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
                     else -> {
                         Log.w("FlutterBlePeripheralManager", "Invalid Characteristic Write Request: " + characteristic.uuid)
                         mBluetoothGattServer.sendResponse(
-                                device,
-                                requestId,
-                                BluetoothGatt.GATT_FAILURE,
-                                0,
-                                null
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_FAILURE,
+                            0,
+                            null
                         )
                     }
                 }
@@ -308,11 +304,43 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
                     )
                 }
             }
+
+            override fun onDescriptorWriteRequest(
+                device: BluetoothDevice, 
+                requestId: Int, 
+                descriptor: BluetoothGattDescriptor, 
+                preparedWrite: Boolean, 
+                responseNeeded: Boolean, 
+                offset: Int, 
+                value: ByteArray,
+            ) {
+                if (responseNeeded) {
+                    Log.i("BluetoothGattServerCallback::onDescriptorWriteRequest", "Sending Response")
+                    mBluetoothGattServer.sendResponse(
+                        device, 
+                        requestId, 
+                        BluetoothGatt.GATT_SUCCESS, 
+                        offset, 
+                        value
+                    )
+                }
+            }
         }
+
 
         mGattService = BluetoothGattService(UUID.fromString(serviceUuid), serviceType)
 
         for (characteristic in serviceCharacteristics) {
+            if ((characteristic.getProperties() and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+                // 0x2902 org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
+                val notifyUuid: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+                val descriptor: BluetoothGattDescriptor = characteristic.getDescriptor(notifyUuid)
+                if (descriptor != null) {
+                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                } else {
+                    Log.e("FlutterBlePeripheralManager", "Characteristic can not be configured with descriptor");
+                }
+            }
             mGattService.addCharacteristic(characteristic)
             mGattServiceCharacteristics[characteristic.uuid.toString()] = characteristic
         }
@@ -322,20 +350,31 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
         if (serviceAdded)
         Log.d("FlutterBlePeripheralManager", "BluetoothGattServer::BLE Service added")
         else
-        Log.d("FlutterBlePeripheralManager", "BluetoothGattServer::BLE Service NOT added")
+        Log.e("FlutterBlePeripheralManager", "BluetoothGattServer::BLE Service NOT added")
 
     }
 
     fun characteristicWrite(charUuid: String, charData: String) : Boolean {
         if (mGattServiceCharacteristics.containsKey(charUuid)) {
-            return mGattServiceCharacteristics[charUuid]!!.setValue(charData)
+            
+            val success: Boolean = mGattServiceCharacteristics[charUuid]!!.setValue(charData)
+            if (success) {
+                for ((address, device) in mBluetoothDevices) {
+                    mBluetoothGattServer.notifyCharacteristicChanged(
+                        device, 
+                        mGattServiceCharacteristics[charUuid], 
+                        false
+                    );
+                }
+            }
+            return success
         }
         return false
     }
 
     fun characteristicRead(charUuid: String) : String? {
         if (mGattServiceCharacteristics.containsKey(charUuid)) {
-            String value = utf8.decode(mGattServiceCharacteristics[charUuid]!!.getValue())
+            val value: String = String(mGattServiceCharacteristics[charUuid]!!.getValue(), charset("UTF-8"))
             return value
         }
         return null

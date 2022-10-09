@@ -9,6 +9,7 @@ package dev.steenbakker.flutter_ble_peripheral
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.AdvertisingSetParameters
@@ -208,11 +209,18 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         //val characteristicsMap = arguments["characteristics"] as List<Map<String, dynamic>>
         for (characteristicMap in arguments["characteristics"] as List<Map<String, String>>) {
             //println(characteristicMap)
+            val properties: Int = characteristicMap["properties"] as Int
+            val permissions: Int = characteristicMap["permissions"] as Int
+            val uuidString: String = characteristicMap["uuid"] as String
+
             var characteristic: BluetoothGattCharacteristic = BluetoothGattCharacteristic(
-                    UUID.fromString(characteristicMap["uuid"] as String),
-                    characteristicMap["properties"] as Int,
-                    characteristicMap["permissions"] as Int,
+                    UUID.fromString(uuidString), properties, permissions,
             )
+            if ((properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+                Log.i(tag, "Adding descriptor...")
+                val descriptor: BluetoothGattDescriptor = BluetoothGattDescriptor(UUID.fromString("00002902-0000-1000-8000-00805F9B34FB"), BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ);
+                characteristic.addDescriptor(descriptor);
+            }
             characteristicList.add(characteristic)
         }
 
@@ -254,9 +262,9 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
         val arguments = call.arguments as Map<String, Any>
 
-        val value: ByteArray? = flutterBlePeripheralManager!!.characteristicRead(
+        val value: String? = flutterBlePeripheralManager!!.characteristicRead(
             arguments["uuid"] as String
-        ) as ByteArray?
+        )
 
         result.success(value)
     }
