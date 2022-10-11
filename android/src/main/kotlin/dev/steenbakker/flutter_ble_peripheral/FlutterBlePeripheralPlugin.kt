@@ -42,6 +42,7 @@ import java.util.*
 
 class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware {
 
+    private val CCC_DESCRIPTOR_UUID: String = "00002902-0000-1000-8000-00805f9b34fb"
     private var methodChannel: MethodChannel? = null
     private val tag: String = "flutter_ble_peripheral"
     private var flutterBlePeripheralManager: FlutterBlePeripheralManager? = null
@@ -218,7 +219,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             )
             if ((properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
                 Log.i(tag, "Adding descriptor...")
-                val descriptor: BluetoothGattDescriptor = BluetoothGattDescriptor(UUID.fromString("00002902-0000-1000-8000-00805F9B34FB"), BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ);
+                val descriptor: BluetoothGattDescriptor = BluetoothGattDescriptor(UUID.fromString(CCC_DESCRIPTOR_UUID), BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ);
                 characteristic.addDescriptor(descriptor);
             }
             characteristicList.add(characteristic)

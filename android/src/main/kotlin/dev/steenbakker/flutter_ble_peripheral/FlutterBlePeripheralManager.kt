@@ -42,6 +42,7 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
     var pendingResultForActivityResult: MethodChannel.Result? = null
     val requestEnableBt = 4
 
+    private val CCC_DESCRIPTOR_UUID: String = "00002902-0000-1000-8000-00805f9b34fb"
     private lateinit var mBluetoothGattServer: BluetoothGattServer
     private lateinit var mGattService : BluetoothGattService
     private var mBluetoothGatt: MutableMap<String, BluetoothGatt> = mutableMapOf<String, BluetoothGatt>()
@@ -119,7 +120,104 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
         val gattCallback = object : BluetoothGattCallback() {
             override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
                 super.onMtuChanged(gatt, mtu, status)
-                //onMtuChanged?.invoke(mtu)
+                Log.i("BluetoothGattCallback", "ATT MTU changed to $mtu, success: ${status == BluetoothGatt.GATT_SUCCESS}")
+            }
+
+            override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                val deviceAddress = gatt.device.address
+         
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    if (newState == BluetoothProfile.STATE_CONNECTED) {
+                        Log.i("BluetoothGattCallback", "Successfully connected to $deviceAddress")
+                        Handler(Looper.getMainLooper()).post {
+                            mBluetoothGatt[deviceAddress]!!.discoverServices()
+                        }
+                    } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                        Log.i("BluetoothGattCallback", "Successfully disconnected from $deviceAddress")
+                        gatt.close()
+                    }
+                } else {
+                    Log.i("BluetoothGattCallback", "Error $status encountered for $deviceAddress! Disconnecting...")
+                    gatt.close()
+                }
+            }
+
+            override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                with(gatt) {
+                    val services: List<BluetoothGattService> = gatt.getServices()
+                    val device: BluetoothDevice = gatt.getDevice()
+
+                    Log.w("BluetoothGattCallback", "Discovered ${services.size} services for ${device.address}")
+                    // Consider connection setup as complete here
+                    if (services.isEmpty()) {
+                        Log.i("onServicesDiscovered", "No service and characteristic available, call discoverServices() first?")
+                        return
+                    }
+                    services.forEach { service ->
+                        val characteristicsTable = service.characteristics.joinToString(
+                            separator = "\n|--",
+                            prefix = "|--"
+                        ) { it.uuid.toString() }
+                        Log.i("onServicesDiscovered", "\nService ${service.uuid}\nCharacteristics:\n$characteristicsTable")
+
+                        service.getCharacteristics().forEach { characteristic -> 
+                            enableNotifications(device.address, characteristic) 
+                            /*
+                            if ((characteristic.getProperties() and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+                                // 0x2902 org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
+                                val notifyUuid: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+                                val descriptor: BluetoothGattDescriptor = characteristic.getDescriptor(notifyUuid)
+                                if (descriptor != null) {
+                                    enableNotifications(address: String, characteristic)
+                                } else {
+                                    Log.e("FlutterBlePeripheralManager", "Characteristic can not be configured with descriptor");
+                                }
+                            }
+                            */
+                        }
+                    }
+                }
+            }
+
+            override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+                with(characteristic) {
+                    Log.i("BluetoothGattCallback", "Characteristic $uuid changed")
+                }
+            }
+
+            override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+                with(characteristic) {
+                    when (status) {
+                        BluetoothGatt.GATT_SUCCESS -> {
+                            Log.i("BluetoothGattCallback", "Read characteristic $uuid")
+                        }
+                        BluetoothGatt.GATT_READ_NOT_PERMITTED -> {
+                            Log.e("BluetoothGattCallback", "Read not permitted for $uuid!")
+                        }
+                        else -> {
+                            Log.e("BluetoothGattCallback", "Characteristic read failed for $uuid, error: $status")
+                        }
+                    }
+                }
+            }
+
+            override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+                with(characteristic) {
+                    when (status) {
+                        BluetoothGatt.GATT_SUCCESS -> {
+                            Log.i("BluetoothGattCallback", "Wrote to characteristic $uuid")
+                        }
+                        BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH -> {
+                            Log.e("BluetoothGattCallback", "Write exceeded connection ATT MTU!")
+                        }
+                        BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> {
+                            Log.e("BluetoothGattCallback", "Write not permitted for $uuid!")
+                        }
+                        else -> {
+                            Log.e("BluetoothGattCallback", "Characteristic write failed for $uuid, error: $status")
+                        }
+                    }
+                }
             }
         }
 
@@ -162,20 +260,22 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
             ) {
                 Log.d("FlutterBlePeripheralManager", "BluetoothGattServerCallback::onConnectionStateChange")
                 super.onConnectionStateChange(device, status, newState)
-                when (status) {
-                    BluetoothProfile.STATE_CONNECTED -> {
-                        mBluetoothDevices.put(device!!.address, device!!)
-                        mBluetoothGatt.put(device!!.address, mBluetoothDevices[device!!.address]!!.connectGatt(context, true, gattCallback))
-                        stateChangedHandler.publishPeripheralState(PeripheralState.connected)
-                        Log.i("BluetoothGattServerCallback::onConnectionStateChange", "Device connected $device")
-                    }
-                    BluetoothProfile.STATE_DISCONNECTED -> {
-                        mBluetoothDevices.remove(device!!.address)
-                        mBluetoothGatt.remove(device!!.address)
-                        if (mBluetoothDevices.isEmpty()) {
-                            stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    when (newState) {
+                        BluetoothProfile.STATE_CONNECTED -> {
+                            mBluetoothDevices.put(device!!.address, device!!)
+                            mBluetoothGatt.put(device!!.address, device!!.connectGatt(context, false, gattCallback))
+                            stateChangedHandler.publishPeripheralState(PeripheralState.connected)
+                            Log.i("BluetoothGattServerCallback::onConnectionStateChange", "Device connected $device")
                         }
-                        Log.i("BluetoothGattServerCallback::onConnectionStateChange", "Device disconnect $device")
+                        BluetoothProfile.STATE_DISCONNECTED -> {
+                            mBluetoothDevices.remove(device!!.address)
+                            mBluetoothGatt.remove(device!!.address)
+                            if (mBluetoothDevices.isEmpty()) {
+                                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                            }
+                            Log.i("BluetoothGattServerCallback::onConnectionStateChange", "Device disconnect $device")
+                        }
                     }
                 }
                 uiThreadHandler.post {
@@ -331,16 +431,6 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
         mGattService = BluetoothGattService(UUID.fromString(serviceUuid), serviceType)
 
         for (characteristic in serviceCharacteristics) {
-            if ((characteristic.getProperties() and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
-                // 0x2902 org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
-                val notifyUuid: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-                val descriptor: BluetoothGattDescriptor = characteristic.getDescriptor(notifyUuid)
-                if (descriptor != null) {
-                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                } else {
-                    Log.e("FlutterBlePeripheralManager", "Characteristic can not be configured with descriptor");
-                }
-            }
             mGattService.addCharacteristic(characteristic)
             mGattServiceCharacteristics[characteristic.uuid.toString()] = characteristic
         }
@@ -379,6 +469,70 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
         }
         return null
     }
+
+    fun BluetoothGattDescriptor.isReadable(): Boolean =
+        containsPermission(BluetoothGattDescriptor.PERMISSION_READ) ||
+        containsPermission(BluetoothGattDescriptor.PERMISSION_READ_ENCRYPTED) ||
+        containsPermission(BluetoothGattDescriptor.PERMISSION_READ_ENCRYPTED_MITM)
+
+    fun BluetoothGattDescriptor.isWritable(): Boolean = 
+        containsPermission(BluetoothGattDescriptor.PERMISSION_WRITE) ||
+        containsPermission(BluetoothGattDescriptor.PERMISSION_WRITE_ENCRYPTED) ||
+        containsPermission(BluetoothGattDescriptor.PERMISSION_WRITE_ENCRYPTED_MITM) ||
+        containsPermission(BluetoothGattDescriptor.PERMISSION_WRITE_SIGNED) ||
+        containsPermission(BluetoothGattDescriptor.PERMISSION_WRITE_SIGNED_MITM)
+        
+    fun BluetoothGattDescriptor.containsPermission(permission: Int): Boolean = permissions and permission != 0
+
+    fun BluetoothGattCharacteristic.isIndicatable(): Boolean = containsProperty(BluetoothGattCharacteristic.PROPERTY_INDICATE)
+    
+    fun BluetoothGattCharacteristic.isNotifiable(): Boolean = containsProperty(BluetoothGattCharacteristic.PROPERTY_NOTIFY)
+
+    fun BluetoothGattCharacteristic.containsProperty(property: Int): Boolean = properties and property != 0
+
+    fun writeDescriptor(descriptor: BluetoothGattDescriptor, payload: ByteArray, address: String) {
+        mBluetoothGatt[address]!!.let { gatt ->
+            descriptor.value = payload
+            gatt.writeDescriptor(descriptor)
+        } ?: error("Not connected to a BLE device!")
+    }
+
+    fun enableNotifications(address: String, characteristic: BluetoothGattCharacteristic) {
+        val cccdUuid = UUID.fromString(CCC_DESCRIPTOR_UUID)
+        val payload = when {
+            characteristic.isIndicatable() -> BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+            characteristic.isNotifiable() -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            else -> {
+                Log.e("ConnectionManager", "${characteristic.uuid} doesn't support notifications/indications")
+                return
+            }
+        }
+     
+        characteristic.getDescriptor(cccdUuid)?.let { cccDescriptor ->
+            if (mBluetoothGatt[address]!!.setCharacteristicNotification(characteristic, true) == false) {
+                Log.e("ConnectionManager", "setCharacteristicNotification failed for ${characteristic.uuid}")
+                return
+            }
+            writeDescriptor(cccDescriptor, payload, address)
+        } ?: Log.e("ConnectionManager", "${characteristic.uuid} doesn't contain the CCC descriptor!")
+    }
+     
+    fun disableNotifications(address: String, characteristic: BluetoothGattCharacteristic) {
+        if (!characteristic.isNotifiable() && !characteristic.isIndicatable()) {
+            Log.e("ConnectionManager", "${characteristic.uuid} doesn't support indications/notifications")
+            return
+        }
+     
+        val cccdUuid = UUID.fromString(CCC_DESCRIPTOR_UUID)
+        characteristic.getDescriptor(cccdUuid)?.let { cccDescriptor ->
+            if (mBluetoothGatt[address]!!.setCharacteristicNotification(characteristic, false) == false) {
+                Log.e("ConnectionManager", "setCharacteristicNotification failed for ${characteristic.uuid}")
+                return
+            }
+            writeDescriptor(cccDescriptor, BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE, address)
+        } ?: Log.e("ConnectionManager", "${characteristic.uuid} doesn't contain the CCC descriptor!")
+    }
+
 
     fun closeGattServer () {
         mBluetoothGattServer.clearServices()
