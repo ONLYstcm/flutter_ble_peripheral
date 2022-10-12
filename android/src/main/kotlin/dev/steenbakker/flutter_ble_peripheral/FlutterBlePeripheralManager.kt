@@ -300,14 +300,14 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
                 super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
                 if (mBluetoothGattServer == null) return
 
-                if (mGattServiceCharacteristics.containsKey(characteristic.uuid.toString())) {
+                if (mGattServiceCharacteristics.containsKey(characteristic.uuid.toString().uppercase())) {
                     Log.i("FlutterBlePeripheralManager", "Characteristic Read Request: " + characteristic.uuid)
                     mBluetoothGattServer.sendResponse(
                         device,
                         requestId,
                         BluetoothGatt.GATT_SUCCESS,
                         0,
-                        mGattServiceCharacteristics[characteristic.uuid.toString()]!!.getValue()
+                        mGattServiceCharacteristics[characteristic.uuid.toString().uppercase()]!!.getValue()
                     )
                     uiThreadHandler.post {
                         eventSink?.success(
@@ -348,7 +348,7 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
                 if (mBluetoothGattServer == null) return
 
                 when {
-                    mGattServiceCharacteristics.containsKey(characteristic.uuid.toString()) -> {
+                    mGattServiceCharacteristics.containsKey(characteristic.uuid.toString().uppercase()) -> {
                         if (value!!.isNotEmpty()) {
                             Log.i("FlutterBlePeripheralManager", "Characteristic Write Request: " + characteristic.uuid)
 
@@ -427,12 +427,11 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
             }
         }
 
-
         mGattService = BluetoothGattService(UUID.fromString(serviceUuid), serviceType)
 
         for (characteristic in serviceCharacteristics) {
             mGattService.addCharacteristic(characteristic)
-            mGattServiceCharacteristics[characteristic.uuid.toString()] = characteristic
+            mGattServiceCharacteristics.put(characteristic.uuid.toString().uppercase(), characteristic)
         }
 
         mBluetoothGattServer = mBluetoothManager!!.openGattServer(context, serverCallback)
@@ -445,14 +444,16 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
     }
 
     fun characteristicWrite(charUuid: String, charData: String) : Boolean {
-        if (mGattServiceCharacteristics.containsKey(charUuid)) {
-            
-            val success: Boolean = mGattServiceCharacteristics[charUuid]!!.setValue(charData)
+        Log.d("FlutterBlePeripheralManager", "characteristicWrite for ${charUuid}")
+        if (mGattServiceCharacteristics.containsKey(charUuid.uppercase())) {
+            Log.d("characteristicWrite", "Characteristic: ${charUuid} Data: ${charData}")            
+            val success: Boolean = mGattServiceCharacteristics[charUuid.uppercase()]!!.setValue(charData)
+            Log.d("characteristicWrite", "Successful: ${success}")
             if (success) {
                 for ((address, device) in mBluetoothDevices) {
                     mBluetoothGattServer.notifyCharacteristicChanged(
                         device, 
-                        mGattServiceCharacteristics[charUuid], 
+                        mGattServiceCharacteristics[charUuid.uppercase()], 
                         false
                     );
                 }
@@ -463,8 +464,11 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
     }
 
     fun characteristicRead(charUuid: String) : String? {
-        if (mGattServiceCharacteristics.containsKey(charUuid)) {
-            val value: String = String(mGattServiceCharacteristics[charUuid]!!.getValue(), charset("UTF-8"))
+        Log.d("FlutterBlePeripheralManager", "characteristicRead for ${charUuid}")
+        if (mGattServiceCharacteristics.containsKey(charUuid.uppercase())) {
+            Log.d("characteristicWrite", "Characteristic: ${charUuid}")
+            val value: String = String(mGattServiceCharacteristics[charUuid.uppercase()]!!.getValue(), charset("UTF-8"))
+            Log.d("characteristicWrite", "Data: ${value}")
             return value
         }
         return null

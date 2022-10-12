@@ -46,6 +46,7 @@ class GattCharacteristic {
     this.permissions = 0,
     this.data = "",
   }) {
+    uuid = uuid.toUpperCase();
     /*
     if ((properties & PROPERTY_NOTIFY) != 0) {
       val descriptor = BluetoothGattDescriptor(
