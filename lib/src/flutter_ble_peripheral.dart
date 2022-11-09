@@ -217,6 +217,13 @@ class FlutterBlePeripheral {
     return _peripheralState!;
   }
 
+  /// Returns Stream of gatt events
+  ///
+  /// After listening to this Stream, you'll be notified about gatt events
+  Stream<Map<String, dynamic>> get onGattEvent {
+    return _eventGattStream;
+  }
+
   // /// Returns Stream of data.
   // ///
   // ///
