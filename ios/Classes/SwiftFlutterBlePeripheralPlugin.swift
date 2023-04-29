@@ -54,6 +54,8 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             characteristicWrite(call, result)
         case "characteristic/read":
             characteristicRead(call, result)
+        case "enable":
+            enable(result)
         case "start":
             startPeripheral(call, result)
         case "stop":
@@ -130,6 +132,11 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         ) as String?
 
         result(value)
+    }
+
+    private func enable(_ result: @escaping FlutterResult) {
+      flutterBlePeripheralManager.enable()
+      result(nil)
     }
     
     private func startPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {

@@ -208,8 +208,8 @@ class FlutterBlePeripheralExampleState
                   return MaterialButton(
                     onPressed: snapshot.data == PeripheralState.poweredOff
                         ? () async {
-                            final bool enabled = await blePeripheral
-                                .enableBluetooth(askUser: false);
+                            final bool enabled =
+                                await blePeripheral.enable(askUser: false);
                             if (enabled) {
                               _messangerKey.currentState!.showSnackBar(
                                 const SnackBar(
@@ -239,7 +239,7 @@ class FlutterBlePeripheralExampleState
               ),
               MaterialButton(
                 onPressed: () async {
-                  final bool enabled = await blePeripheral.enableBluetooth();
+                  final bool enabled = await blePeripheral.enable();
                   if (enabled) {
                     _messangerKey.currentState!.showSnackBar(
                       const SnackBar(

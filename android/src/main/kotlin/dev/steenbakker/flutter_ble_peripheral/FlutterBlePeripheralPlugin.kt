@@ -120,9 +120,9 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 //        }
 //    }
 
-    private fun enableBluetooth(call: MethodCall, result: MethodChannel.Result) {
+    private fun enable(call: MethodCall, result: MethodChannel.Result) {
         if (activityBinding != null) {
-            flutterBlePeripheralManager!!.enableBluetooth(call, result, activityBinding!!)
+            flutterBlePeripheralManager!!.enable(call, result, activityBinding!!)
         } else {
             result.error("No activity", "FlutterBlePeripheral is not correctly initialized", "null")
         }
@@ -133,8 +133,8 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             result.error("Not initialized", "FlutterBlePeripheral is not correctly initialized", "null")
         }
 
-        if (call.method == "enableBluetooth") {
-            enableBluetooth(call, result)
+        if (call.method == "enable") {
+            enable(call, result)
         } else {
             checkBluetooth()
             try {

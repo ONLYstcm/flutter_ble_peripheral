@@ -21,7 +21,7 @@ class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
         self.stateChangedHandler = stateChangedHandler
         self.gattEventHandler = gattEventHandler
     }
-    
+
     lazy var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
 
     // min MTU before iOS 10
@@ -30,7 +30,11 @@ class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
 //          onMtuChanged?(mtu)
 //        }
 //    }
-    
+
+    func enable() {
+      // no-op
+    }
+
     func start(advertiseData: PeripheralData) {
         
         var dataToBeAdvertised: [String: Any]! = [:]

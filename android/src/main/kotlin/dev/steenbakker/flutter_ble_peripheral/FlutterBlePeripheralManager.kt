@@ -58,7 +58,7 @@ class FlutterBlePeripheralManager(appContext: Context, stateHandler: StateChange
     /**
      * Enables bluetooth with a dialog or without.
      */
-    fun enableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
+    fun enable(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
         if (mBluetoothManager!!.adapter.isEnabled) {
             result.success(true)
         } else {

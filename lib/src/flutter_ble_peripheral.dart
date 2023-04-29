@@ -189,9 +189,9 @@ class FlutterBlePeripheral {
   }
 
   /// Stop advertising
-  Future<bool> enableBluetooth({bool askUser = true}) async {
+  Future<bool> enable({bool askUser = true}) async {
     return await _methodChannel.invokeMethod<bool>(
-          'enableBluetooth',
+          'enable',
           askUser,
         ) ??
         false;
